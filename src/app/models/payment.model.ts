@@ -11,6 +11,12 @@ export function getWeeksOwed(startDateStr: string, referenceDate: Date = new Dat
   return Math.floor(ms / (7 * 24 * 60 * 60 * 1000));
 }
 
+/** Fecha desde la que un jugador empieza a deber cuota: el inicio de temporada,
+ *  o la fecha en que se agrego el jugador si se unio despues de esa fecha. */
+export function getEffectiveStartDate(seasonStart: string, joinedAt?: string): string {
+  return joinedAt && joinedAt > seasonStart ? joinedAt : seasonStart;
+}
+
 export interface Payment {
   id?: string;
   playerId: string;

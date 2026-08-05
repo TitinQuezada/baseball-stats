@@ -7,6 +7,8 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatNativeDateModule } from '@angular/material/core';
 import { Player, POSITIONS } from '../../models/player.model';
 
 @Component({
@@ -16,6 +18,7 @@ import { Player, POSITIONS } from '../../models/player.model';
     CommonModule, ReactiveFormsModule, MatDialogModule,
     MatFormFieldModule, MatInputModule, MatSelectModule,
     MatButtonModule, MatSlideToggleModule,
+    MatDatepickerModule, MatNativeDateModule,
   ],
   template: `
     <h2 mat-dialog-title>{{ data ? 'Editar Jugador' : 'Nuevo Jugador' }}</h2>
@@ -54,6 +57,14 @@ import { Player, POSITIONS } from '../../models/player.model';
           }
         </mat-form-field>
 
+        <mat-form-field appearance="outline">
+          <mat-label>Jugador desde</mat-label>
+          <input matInput [matDatepicker]="joinedPicker" formControlName="joinedAt" readonly>
+          <mat-datepicker-toggle matIconSuffix [for]="joinedPicker"></mat-datepicker-toggle>
+          <mat-datepicker #joinedPicker></mat-datepicker>
+          <mat-hint>Desde cuándo debe cuota. Vacío = desde el inicio de temporada</mat-hint>
+        </mat-form-field>
+
         <mat-slide-toggle formControlName="active" color="primary">
           Jugador Activo
         </mat-slide-toggle>
@@ -83,14 +94,36 @@ export class PlayerDialogComponent {
       number: [data?.number ?? null, Validators.required],
       position: [data?.position ?? 'P', Validators.required],
       phone: [data?.phone ?? '', Validators.pattern(/^\d{10,15}$/)],
+      // Jugador nuevo: hoy por defecto (debe cuota desde que se agrega, no desde el inicio de temporada).
+      // Edicion de jugador existente sin fecha: se deja vacio, no se asume "hoy".
+      joinedAt: [data ? this.parseDate(data.joinedAt) : new Date()],
       active: [data?.active ?? true],
     });
   }
 
+  private parseDate(dateStr?: string): Date | null {
+    if (!dateStr) return null;
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  private formatDate(date: Date): string {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
   save() {
     if (this.form.invalid) return;
-    const result = { ...this.form.value };
-    if (this.data?.id) (result as any).id = this.data.id;
+    const result: any = { ...this.form.value };
+    const joinedAt = this.form.value.joinedAt as Date | null;
+    if (joinedAt) {
+      result.joinedAt = this.formatDate(joinedAt);
+    } else {
+      delete result.joinedAt;
+    }
+    if (this.data?.id) result.id = this.data.id;
     this.ref.close(result);
   }
 }

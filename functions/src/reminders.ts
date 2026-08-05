@@ -1,5 +1,5 @@
 import { getFirestore } from 'firebase-admin/firestore';
-import { computePlayerDebt, getWeeksOwed, SeasonPayment } from './debt-calc';
+import { computePlayerDebt, getEffectiveStartDate, getWeeksOwed, SeasonPayment } from './debt-calc';
 import { sendTemplateMessage, WhatsAppCredentials } from './whatsapp-client';
 
 const DEFAULT_SEASON_START = '2026-06-01';
@@ -11,6 +11,7 @@ interface Player {
   number: number;
   active: boolean;
   phone?: string;
+  joinedAt?: string;
 }
 
 interface Payment {
@@ -55,8 +56,7 @@ export async function runPaymentReminders(credentials: WhatsAppCredentials): Pro
     return summary;
   }
 
-  const weeksOwed = getWeeksOwed(seasonStartDate);
-  const weekBucket = weeksOwed;
+  const weekBucket = getWeeksOwed(seasonStartDate);
 
   const [playersSnap, paymentsSnap] = await Promise.all([
     db.collection('players').where('active', '==', true).get(),
@@ -76,7 +76,12 @@ export async function runPaymentReminders(credentials: WhatsAppCredentials): Pro
   const candidates = players
     .filter(p => !!p.phone)
     .map(p => {
-      const debt = computePlayerDebt(paymentsByPlayer.get(p.id) ?? [], weeksOwed, WEEKLY_FEE);
+      // Si el jugador se agrego despues del inicio de temporada, debe cuota
+      // recien desde esa fecha, no desde el dia 1 de la temporada.
+      const effectiveStart = getEffectiveStartDate(seasonStartDate, p.joinedAt);
+      const weeksOwed = getWeeksOwed(effectiveStart);
+      const playerPayments = (paymentsByPlayer.get(p.id) ?? []).filter(pay => pay.date >= effectiveStart);
+      const debt = computePlayerDebt(playerPayments, weeksOwed, WEEKLY_FEE);
       return { player: p, debt };
     })
     .filter(({ debt }) => debt.weeksDebt > whatsappConfig.weeksDebtThreshold);

@@ -44,6 +44,8 @@ Thumbs.db
 
 # Firebase
 /.firebase
+firebase-debug.log
+functions/firebase-debug.log
 
 # Environment config (contiene la configuracion de Firebase, se crea localmente)
 /src/environments/environment.ts

@@ -9,7 +9,7 @@ import * as XLSX from 'xlsx';
 import { PlayerService } from '../../services/player.service';
 import { PaymentService } from '../../services/payment.service';
 import { Player } from '../../models/player.model';
-import { Payment, FundExpense, WEEKLY_FEE, DEFAULT_SEASON_START, getWeeksOwed, computePlayerDebt } from '../../models/payment.model';
+import { Payment, FundExpense, WEEKLY_FEE, DEFAULT_SEASON_START, getWeeksOwed, getEffectiveStartDate, computePlayerDebt } from '../../models/payment.model';
 
 interface PlayerSummary {
   player: Player;
@@ -347,11 +347,12 @@ export class PublicPaymentsComponent implements OnInit {
   playerSummaries = computed<PlayerSummary[]>(() => {
     const allPayments = this.allPayments();
     const seasonStart = this.seasonStartDate();
-    const weeksOwed = this.weeksOwedNow();
     return this.players()
       .filter(p => p.active)
       .map(p => {
-        const seasonPayments = allPayments.filter(pay => pay.playerId === p.id && pay.date >= seasonStart);
+        const effectiveStart = getEffectiveStartDate(seasonStart, p.joinedAt);
+        const weeksOwed = getWeeksOwed(effectiveStart);
+        const seasonPayments = allPayments.filter(pay => pay.playerId === p.id && pay.date >= effectiveStart);
         const debt = computePlayerDebt(seasonPayments, weeksOwed, WEEKLY_FEE);
         return { player: p, ...debt };
       })

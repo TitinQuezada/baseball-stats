@@ -11,7 +11,7 @@ import * as XLSX from 'xlsx';
 import { PlayerService } from '../../services/player.service';
 import { PaymentService } from '../../services/payment.service';
 import { Player } from '../../models/player.model';
-import { Payment, FundExpense, WEEKLY_FEE, DEFAULT_SEASON_START, getWeeksOwed, computePlayerDebt } from '../../models/payment.model';
+import { Payment, FundExpense, WEEKLY_FEE, DEFAULT_SEASON_START, getWeeksOwed, getEffectiveStartDate, computePlayerDebt } from '../../models/payment.model';
 import { ExpenseDialogComponent } from './expense-dialog.component';
 
 interface PlayerSummary {
@@ -377,13 +377,15 @@ export class PaymentsComponent implements OnInit {
   playerSummaries = computed<PlayerSummary[]>(() => {
     const allPayments = this.allPayments();
     const seasonStart = this.seasonStartDate();
-    const weeksOwed = this.weeksOwedNow();
     return this.players()
       .filter(p => p.active)
       .map(p => {
+        // Si el jugador se agrego despues del inicio de temporada, debe cuota
+        // recien desde esa fecha, no desde el dia 1 de la temporada.
+        const effectiveStart = getEffectiveStartDate(seasonStart, p.joinedAt);
+        const weeksOwed = getWeeksOwed(effectiveStart);
         const playerPayments = allPayments.filter(pay => pay.playerId === p.id);
-        // Solo pagos de la temporada actual para el control semanal
-        const seasonPayments = playerPayments.filter(pay => pay.date >= seasonStart);
+        const seasonPayments = playerPayments.filter(pay => pay.date >= effectiveStart);
         const debt = computePlayerDebt(seasonPayments, weeksOwed, WEEKLY_FEE);
         return { player: p, payments: playerPayments, ...debt };
       })

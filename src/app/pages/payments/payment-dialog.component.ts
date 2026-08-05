@@ -14,7 +14,7 @@ import { combineLatest, Subscription } from 'rxjs';
 import { Player } from '../../models/player.model';
 import { PaymentService } from '../../services/payment.service';
 import { AuthService } from '../../services/auth.service';
-import { Payment, WEEKLY_FEE, DEFAULT_SEASON_START, getWeeksOwed } from '../../models/payment.model';
+import { Payment, WEEKLY_FEE, DEFAULT_SEASON_START, getWeeksOwed, getEffectiveStartDate } from '../../models/payment.model';
 
 @Component({
   selector: 'app-payment-dialog',
@@ -173,8 +173,9 @@ export class PaymentDialogComponent implements OnInit, OnDestroy {
   seasonStartDate = signal<string>(DEFAULT_SEASON_START);
   saving = signal(false);
 
-  seasonPayments = computed(() => this.payments().filter(p => p.date >= this.seasonStartDate()));
-  weeksOwed = computed(() => getWeeksOwed(this.seasonStartDate()));
+  effectiveStartDate = computed(() => getEffectiveStartDate(this.seasonStartDate(), this.player.joinedAt));
+  seasonPayments = computed(() => this.payments().filter(p => p.date >= this.effectiveStartDate()));
+  weeksOwed = computed(() => getWeeksOwed(this.effectiveStartDate()));
   totalOwed = computed(() => this.weeksOwed() * WEEKLY_FEE);
 
   totalPaid = computed(() => this.seasonPayments().reduce((s, p) => s + p.amount, 0));

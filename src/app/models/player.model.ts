@@ -8,6 +8,9 @@ export interface Player {
   active: boolean;
   /** Numero de WhatsApp en formato E.164 sin '+' (ej. 18091234567) */
   phone?: string;
+  /** Fecha en que se agrego el jugador ('YYYY-MM-DD'). Si no esta, se asume
+   *  que debe cuota desde el inicio de la temporada (jugadores existentes). */
+  joinedAt?: string;
 }
 
 export const POSITIONS: { value: Position; label: string }[] = [
