@@ -1,0 +1,49 @@
+@use '@angular/material' as mat;
+
+@include mat.core();
+
+$theme: mat.define-theme((
+  color: (
+    theme-type: light,
+    primary: mat.$red-palette,
+    tertiary: mat.$blue-palette,
+  ),
+));
+
+html {
+  @include mat.all-component-themes($theme);
+}
+
+:root {
+  --red:        #C62828;
+  --red-light:  #EF5350;
+  --red-bg:     #FFEBEE;
+  --blue:       #1565C0;
+  --blue-light: #1976D2;
+  --blue-bg:    #E3F2FD;
+  --black:      #1A1A1A;
+  --gray:       #555;
+  --bg:         #F4F6F9;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Roboto, 'Helvetica Neue', sans-serif;
+  background: var(--bg);
+}
+
+.mat-mdc-table {
+  background: white;
+}
+
+.mat-mdc-row:hover {
+  background: #f8f8f8;
+}
+
+mat-card {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.09) !important;
+}
