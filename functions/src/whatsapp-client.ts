@@ -7,17 +7,18 @@ export interface WhatsAppCredentials {
 
 /** Envia un mensaje de plantilla aprobada por Meta a un numero de WhatsApp.
  *  `to` debe estar en formato E.164 sin '+' (ej. 18091234567).
- *  `bodyParams` son los valores de las variables con nombre del cuerpo de la
- *  plantilla, ej. { nombre: 'Juan', monto: '150' } para una plantilla con
- *  {{nombre}} y {{monto}}. */
+ *  `bodyParams` son los valores posicionales de las variables del cuerpo de la
+ *  plantilla, en orden: el primer elemento sustituye {{1}}, el segundo {{2}}, etc.
+ *  Devuelve el message id que asigna Meta, para correlacionar despues con las
+ *  actualizaciones de estado que llegan por el webhook. */
 export async function sendTemplateMessage(
   credentials: WhatsAppCredentials,
   to: string,
   templateName: string,
-  bodyParams: Record<string, string>,
-): Promise<void> {
+  languageCode: string,
+  bodyParams: string[],
+): Promise<string | undefined> {
   const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${credentials.phoneNumberId}/messages`;
-  const paramEntries = Object.entries(bodyParams);
 
   const response = await fetch(url, {
     method: 'POST',
@@ -31,11 +32,11 @@ export async function sendTemplateMessage(
       type: 'template',
       template: {
         name: templateName,
-        language: { code: 'es' },
-        components: paramEntries.length > 0 ? [
+        language: { code: languageCode },
+        components: bodyParams.length > 0 ? [
           {
             type: 'body',
-            parameters: paramEntries.map(([parameter_name, text]) => ({ type: 'text', parameter_name, text })),
+            parameters: bodyParams.map(text => ({ type: 'text', text })),
           },
         ] : undefined,
       },
@@ -46,4 +47,7 @@ export async function sendTemplateMessage(
     const errorBody = await response.text();
     throw new Error(`Meta WhatsApp API error (${response.status}): ${errorBody}`);
   }
+
+  const responseBody = await response.json() as { messages?: { id?: string }[] };
+  return responseBody.messages?.[0]?.id;
 }

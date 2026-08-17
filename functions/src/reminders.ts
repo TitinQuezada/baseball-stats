@@ -4,6 +4,7 @@ import { sendTemplateMessage, WhatsAppCredentials } from './whatsapp-client';
 
 const DEFAULT_SEASON_START = '2026-06-01';
 const WEEKLY_FEE = 50;
+const SCHEDULE_TIMEZONE = 'America/Santo_Domingo';
 
 interface Player {
   id: string;
@@ -24,6 +25,8 @@ interface WhatsAppConfig {
   enabled: boolean;
   weeksDebtThreshold: number;
   templateName: string;
+  languageCode: string;
+  sendDaysOfWeek: number[];
 }
 
 export interface RemindersSummary {
@@ -32,10 +35,25 @@ export interface RemindersSummary {
   skipped: number;
 }
 
+export interface RunOptions {
+  /** Si es true (boton "Enviar ahora"), ignora sendDaysOfWeek y envia de inmediato. */
+  manual?: boolean;
+}
+
+/** Dia de la semana actual (0 = domingo ... 6 = sabado) en `timeZone`. */
+function getCurrentDayOfWeek(timeZone: string): number {
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const weekday = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short' }).format(new Date());
+  return Math.max(0, dayNames.indexOf(weekday));
+}
+
 /** Logica principal: lee config y datos de Firestore, calcula deuda por jugador,
  *  y envia un recordatorio de WhatsApp a los que superan el umbral configurado,
  *  evitando reenviar mas de una vez por semana al mismo jugador. */
-export async function runPaymentReminders(credentials: WhatsAppCredentials): Promise<RemindersSummary> {
+export async function runPaymentReminders(
+  credentials: WhatsAppCredentials,
+  options: RunOptions = {},
+): Promise<RemindersSummary> {
   const db = getFirestore();
   const summary: RemindersSummary = { sent: 0, failed: 0, skipped: 0 };
 
@@ -49,10 +67,16 @@ export async function runPaymentReminders(credentials: WhatsAppCredentials): Pro
     enabled: whatsappDoc.data()?.['enabled'] ?? false,
     weeksDebtThreshold: whatsappDoc.data()?.['weeksDebtThreshold'] ?? 2,
     templateName: whatsappDoc.data()?.['templateName'] ?? 'recordatorio_de_pago',
+    languageCode: whatsappDoc.data()?.['languageCode'] ?? 'es',
+    sendDaysOfWeek: whatsappDoc.data()?.['sendDaysOfWeek'] ?? [1],
   };
 
   if (!whatsappConfig.enabled) {
     console.log('Recordatorios de WhatsApp deshabilitados en config/whatsapp, no se envia nada.');
+    return summary;
+  }
+
+  if (!options.manual && !whatsappConfig.sendDaysOfWeek.includes(getCurrentDayOfWeek(SCHEDULE_TIMEZONE))) {
     return summary;
   }
 
@@ -99,11 +123,13 @@ export async function runPaymentReminders(credentials: WhatsAppCredentials): Pro
     }
 
     try {
-      await sendTemplateMessage(
+      // La plantilla usa variables posicionales: {{1}} = nombre, {{2}} = monto adeudado.
+      const messageId = await sendTemplateMessage(
         credentials,
         player.phone!,
         whatsappConfig.templateName,
-        { nombre: player.name, monto: String(debt.debtAmount) },
+        whatsappConfig.languageCode,
+        [player.name, String(debt.debtAmount)],
       );
       summary.sent++;
       await db.collection('whatsapp_notifications').add({
@@ -114,6 +140,7 @@ export async function runPaymentReminders(credentials: WhatsAppCredentials): Pro
         weekBucket,
         sentAt: new Date().toISOString(),
         status: 'sent',
+        ...(messageId ? { messageId } : {}),
       });
     } catch (err) {
       summary.failed++;

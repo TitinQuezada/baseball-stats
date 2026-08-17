@@ -6,6 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDividerModule } from '@angular/material/divider';
@@ -24,7 +25,7 @@ interface SendRemindersResult {
   standalone: true,
   imports: [
     CommonModule, ReactiveFormsModule, MatCardModule, MatButtonModule,
-    MatIconModule, MatFormFieldModule, MatInputModule, MatSlideToggleModule,
+    MatIconModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatSlideToggleModule,
     MatSnackBarModule, MatDividerModule,
   ],
   template: `
@@ -57,6 +58,22 @@ interface SendRemindersResult {
               <mat-label>Nombre de la plantilla (Meta)</mat-label>
               <input matInput formControlName="templateName" placeholder="recordatorio_de_pago">
             </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Código de idioma de la plantilla</mat-label>
+              <input matInput formControlName="languageCode" placeholder="es">
+              <mat-hint>Tal cual figura en Meta (ej. es, es_MX, es_AR)</mat-hint>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Días de envío</mat-label>
+              <mat-select formControlName="sendDaysOfWeek" multiple>
+                @for (day of weekDays; track day.value) {
+                  <mat-option [value]="day.value">{{ day.label }}</mat-option>
+                }
+              </mat-select>
+              <mat-hint>Se revisa todos los días a las 9:00am (hora RD) y solo se envía en los días seleccionados</mat-hint>
+            </mat-form-field>
           </form>
         </mat-card-content>
         <mat-card-actions align="end">
@@ -82,12 +99,20 @@ interface SendRemindersResult {
                       <span class="li-status" [class.status-failed]="n.status === 'failed'">
                         {{ n.status === 'sent' ? 'Enviado' : 'Falló' }}
                       </span>
+                      @if (n.status === 'sent' && n.deliveryStatus) {
+                        <span class="li-delivery" [class.status-failed]="n.deliveryStatus === 'failed'">
+                          {{ deliveryStatusLabel(n.deliveryStatus) }}
+                        </span>
+                      }
                     </div>
                     <div class="li-row2">
                       <span class="li-date">{{ n.sentAt | date:'short' }}</span>
                       <span>{{ n.weeksDebt }} semanas adeudadas</span>
                       @if (n.errorMessage) {
                         <span class="li-error">{{ n.errorMessage }}</span>
+                      }
+                      @if (n.deliveryError) {
+                        <span class="li-error">{{ n.deliveryError }}</span>
                       }
                     </div>
                   </div>
@@ -115,6 +140,8 @@ interface SendRemindersResult {
     .li-player { font-weight: 600; font-size: 0.92rem; }
     .li-status { font-size: 0.78rem; font-weight: 600; color: #2e7d32; }
     .li-status.status-failed { color: #C62828; }
+    .li-delivery { font-size: 0.72rem; font-weight: 600; color: #666; }
+    .li-delivery.status-failed { color: #C62828; }
     .li-error { color: #C62828; }
   `],
 })
@@ -128,10 +155,21 @@ export class SettingsComponent implements OnInit {
   sending = signal(false);
   recentNotifications = signal<WhatsAppNotification[]>([]);
 
+  weekDays = [
+    { value: 0, label: 'Domingo' },
+    { value: 1, label: 'Lunes' },
+    { value: 2, label: 'Martes' },
+    { value: 3, label: 'Miércoles' },
+    { value: 4, label: 'Jueves' },
+    { value: 5, label: 'Viernes' },
+    { value: 6, label: 'Sábado' },
+  ];
   form = this.fb.group({
     enabled: [false],
     weeksDebtThreshold: [2, [Validators.required, Validators.min(0)]],
     templateName: ['recordatorio_de_pago', Validators.required],
+    languageCode: ['es', Validators.required],
+    sendDaysOfWeek: [[1] as number[], Validators.required],
   });
 
   ngOnInit() {
@@ -144,11 +182,13 @@ export class SettingsComponent implements OnInit {
   save() {
     if (this.form.invalid) return;
     this.saving.set(true);
-    const { enabled, weeksDebtThreshold, templateName } = this.form.getRawValue();
+    const { enabled, weeksDebtThreshold, templateName, languageCode, sendDaysOfWeek } = this.form.getRawValue();
     this.settingsService.updateWhatsAppConfig({
       enabled: !!enabled,
       weeksDebtThreshold: weeksDebtThreshold ?? 0,
       templateName: templateName ?? '',
+      languageCode: languageCode ?? 'es',
+      sendDaysOfWeek: sendDaysOfWeek?.length ? sendDaysOfWeek : [1],
     }).then(
       () => {
         this.saving.set(false);
@@ -159,6 +199,15 @@ export class SettingsComponent implements OnInit {
         this.snackBar.open('Error al guardar la configuración', 'OK', { duration: 3000 });
       },
     );
+  }
+
+  deliveryStatusLabel(status: string): string {
+    switch (status) {
+      case 'delivered': return 'Entregado';
+      case 'read': return 'Leído';
+      case 'failed': return 'Entrega fallida';
+      default: return status;
+    }
   }
 
   sendNow() {
