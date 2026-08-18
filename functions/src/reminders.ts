@@ -32,7 +32,6 @@ interface WhatsAppConfig {
 export interface RemindersSummary {
   sent: number;
   failed: number;
-  skipped: number;
 }
 
 export interface RunOptions {
@@ -48,14 +47,13 @@ function getCurrentDayOfWeek(timeZone: string): number {
 }
 
 /** Logica principal: lee config y datos de Firestore, calcula deuda por jugador,
- *  y envia un recordatorio de WhatsApp a los que superan el umbral configurado,
- *  evitando reenviar mas de una vez por semana al mismo jugador. */
+ *  y envia un recordatorio de WhatsApp a los que superan el umbral configurado. */
 export async function runPaymentReminders(
   credentials: WhatsAppCredentials,
   options: RunOptions = {},
 ): Promise<RemindersSummary> {
   const db = getFirestore();
-  const summary: RemindersSummary = { sent: 0, failed: 0, skipped: 0 };
+  const summary: RemindersSummary = { sent: 0, failed: 0 };
 
   const [seasonDoc, whatsappDoc] = await Promise.all([
     db.doc('config/season').get(),
@@ -111,17 +109,6 @@ export async function runPaymentReminders(
     .filter(({ debt }) => debt.weeksDebt > whatsappConfig.weeksDebtThreshold);
 
   for (const { player, debt } of candidates) {
-    const existing = await db.collection('whatsapp_notifications')
-      .where('playerId', '==', player.id)
-      .where('weekBucket', '==', weekBucket)
-      .limit(1)
-      .get();
-
-    if (!existing.empty) {
-      summary.skipped++;
-      continue;
-    }
-
     try {
       // La plantilla usa variables posicionales: {{1}} = nombre, {{2}} = monto adeudado.
       const messageId = await sendTemplateMessage(
@@ -160,6 +147,6 @@ export async function runPaymentReminders(
 
   await db.doc('config/whatsapp').set({ lastRunAt: new Date().toISOString() }, { merge: true });
 
-  console.log(`Recordatorios de pago: enviados=${summary.sent} fallidos=${summary.failed} omitidos=${summary.skipped}`);
+  console.log(`Recordatorios de pago: enviados=${summary.sent} fallidos=${summary.failed}`);
   return summary;
 }

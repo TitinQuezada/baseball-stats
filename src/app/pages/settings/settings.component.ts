@@ -17,7 +17,6 @@ import { WhatsAppNotification } from '../../models/settings.model';
 interface SendRemindersResult {
   sent: number;
   failed: number;
-  skipped: number;
 }
 
 @Component({
@@ -216,9 +215,9 @@ export class SettingsComponent implements OnInit {
     sendReminders().then(
       result => {
         this.sending.set(false);
-        const { sent, failed, skipped } = result.data;
+        const { sent, failed } = result.data;
         this.snackBar.open(
-          `Enviados: ${sent} · Fallidos: ${failed} · Omitidos: ${skipped}`,
+          `Enviados: ${sent} · Fallidos: ${failed}`,
           'OK',
           { duration: 4000 },
         );
